@@ -829,7 +829,6 @@ HdaControllerDriverBindingStart (
   EFI_PCI_IO_PROTOCOL       *PciIo;
   EFI_DEVICE_PATH_PROTOCOL  *HdaControllerDevicePath;
   HDA_CONTROLLER_DEV        *HdaControllerDev;
-  VOID                      *VMwareHda;
   UINT32                    OpenMode;
 
   DEBUG ((DEBUG_INFO, "HDA: Starting for %p\n", ControllerHandle));
@@ -851,16 +850,9 @@ HdaControllerDriverBindingStart (
 
     if (EFI_ERROR (Status)) {
       if (Status == EFI_ACCESS_DENIED && OpenMode == EFI_OPEN_PROTOCOL_BY_DRIVER) {
-        Status = gBS->HandleProtocol (
-          ControllerHandle,
-          &gVMwareHdaProtocolGuid,
-          &VMwareHda
-          );
-        if (!EFI_ERROR (Status)) {
-          DEBUG ((DEBUG_INFO, "HDA: Found VMware protocol, using GET mode\n"));
-          OpenMode = EFI_OPEN_PROTOCOL_GET_PROTOCOL;
-          continue;
-        }
+        DEBUG ((DEBUG_INFO, "HDA: Forcing GET mode\n"));
+        OpenMode = EFI_OPEN_PROTOCOL_GET_PROTOCOL;
+        continue;
       }
 
       return Status;
