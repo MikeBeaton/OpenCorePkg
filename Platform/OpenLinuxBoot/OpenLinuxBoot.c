@@ -23,6 +23,7 @@ InternalScanLoaderEntries (
   )
 {
   EFI_STATUS                      Status;
+  EFI_STATUS                      TempStatus;
 
   EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *FileSystem;
   EFI_FILE_PROTOCOL               *Root;
@@ -75,6 +76,8 @@ InternalScanLoaderEntries (
     return EFI_OUT_OF_RESOURCES;
   }
 
+  Status = EFI_NOT_FOUND;
+
   Directory->SetPosition (Directory, 0);
 
   do {
@@ -83,11 +86,11 @@ InternalScanLoaderEntries (
     // unrealistic as the filename is the only variable.
     //
     FileInfoSize = SIZE_1KB - sizeof (CHAR16);
-    Status = Directory->Read (Directory, &FileInfoSize, FileInfo);
-    if (EFI_ERROR (Status)) {
+    TempStatus = Directory->Read (Directory, &FileInfoSize, FileInfo);
+    if (EFI_ERROR (TempStatus)) {
       Directory->SetPosition (Directory, 0);
       FreePool (FileInfo);
-      return Status;
+      return TempStatus;
     }
 
     if (FileInfoSize > 0) {
@@ -103,6 +106,8 @@ InternalScanLoaderEntries (
       }
 
       DEBUG ((DEBUG_INFO, "LNX: Ready to scan %s ...\n", FileInfo->FileName));
+
+      Status = EFI_SUCCESS;
     }
   } while (FileInfoSize > 0);
 
@@ -123,6 +128,7 @@ OcGetLinuxBootEntries (
   IN   CHAR16                   *PrescanName OPTIONAL
   )
 {
+  EFI_STATUS                  Status;
   UINT32                      FileSystemPolicy;
   CONST EFI_PARTITION_ENTRY   *PartitionEntry;
 
@@ -140,12 +146,12 @@ OcGetLinuxBootEntries (
   FileSystemPolicy = OcGetFileSystemPolicyType (Device);
 
   if ((FileSystemPolicy & OC_SCAN_ALLOW_FS_APFS) != 0) {
-    DEBUG ((DEBUG_INFO, "LNX: %a - not scanning\r", "APFS"));
+    DEBUG ((DEBUG_INFO, "LNX: %a - not scanning\n", "APFS"));
     return EFI_NOT_FOUND;
   }
 
   if ((FileSystemPolicy & OC_SCAN_ALLOW_FS_HFS) != 0) {
-    DEBUG ((DEBUG_INFO, "LNX: %a - not scanning\r", "HFS"));
+    DEBUG ((DEBUG_INFO, "LNX: %a - not scanning\n", "HFS"));
     return EFI_NOT_FOUND;
   }
 
@@ -165,7 +171,11 @@ OcGetLinuxBootEntries (
   //
   // Scan for boot loader spec entries
   //
-  InternalScanLoaderEntries (Device);
+  Status = InternalScanLoaderEntries (Device);
+
+  if (Status == EFI_NOT_FOUND) {
+    DEBUG ((DEBUG_INFO, "LNX: Nothing found\n"));
+  }
 
   return EFI_NOT_FOUND;
 }
