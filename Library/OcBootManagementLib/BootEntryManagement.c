@@ -13,6 +13,7 @@
 **/
 
 #include "BootManagementInternal.h"
+#include "BootEntryProtocolInternal.h"
 
 #include <Protocol/DevicePath.h>
 #include <Protocol/SimpleFileSystem.h>
@@ -1824,6 +1825,8 @@ OcScanForBootEntries (
   OC_BOOT_FILESYSTEM               *CustomFileSystem;
   OC_BOOT_FILESYSTEM               *CustomFileSystemDefault;
   UINT32                           DefaultCustomIndex;
+  EFI_HANDLE                       *EntryProtocolHandles;
+  UINTN                            EntryProtocolHandleCount;
 
   //
   // Obtain the list of filesystems filtered by scan policy.
@@ -1837,6 +1840,11 @@ OcScanForBootEntries (
   }
 
   DEBUG ((DEBUG_INFO, "OCB: Found %u potentially bootable filesystems\n", (UINT32) BootContext->FileSystemCount));
+
+  //
+  // Locate loaded boot entry protocol handles
+  //
+  LocateBootEntryProtocolHandles (&EntryProtocolHandles, &EntryProtocolHandleCount);
 
   //
   // Create primary boot options from BootOrder.
@@ -1906,6 +1914,16 @@ OcScanForBootEntries (
     }
 
     //
+    // Still no entries, try boot entry protocol.
+    //
+    AddEntriesFromBootEntryProtocol (
+      BootContext,
+      FileSystem,
+      EntryProtocolHandles,
+      EntryProtocolHandleCount
+      );
+
+    //
     // Record predefined recoveries.
     //
     AddBootEntryFromSelfRecovery (BootContext, FileSystem);
@@ -1922,7 +1940,19 @@ OcScanForBootEntries (
     // Build custom and system options.
     //
     AddFileSystemEntryForCustom (BootContext, CustomFileSystem, DefaultCustomIndex);
+
+    //
+    // Boot entry protocol also supports custom entries.
+    //
+    AddEntriesFromBootEntryProtocol (
+      BootContext,
+      CustomFileSystem,
+      EntryProtocolHandles,
+      EntryProtocolHandleCount
+      );
   }
+
+  FreeBootEntryProtocolHandles (&EntryProtocolHandles);
 
   if (BootContext->BootEntryCount == 0) {
     OcFreeBootContext (BootContext);

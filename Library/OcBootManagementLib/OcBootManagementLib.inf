@@ -39,6 +39,8 @@
   BootEntryInfo.c
   BootEntryManagement.c
   BootManagementInternal.h
+  BootEntryProtocol.c
+  BootEntryProtocolInternal.h
   BuiltinPicker.c
   DefaultEntryChoice.c
   DmgBootSupport.c
@@ -92,6 +94,7 @@
   gOcFirmwareRuntimeProtocolGuid     ## SOMETIMES_CONSUMES
   gOcAudioProtocolGuid               ## SOMETIMES_CONSUMES
   gAppleBeepGenProtocolGuid          ## SOMETIMES_CONSUMES
+  gOcBootEntryProtocolGuid           ## CONSUMES
 
 [LibraryClasses]
   BaseLib
