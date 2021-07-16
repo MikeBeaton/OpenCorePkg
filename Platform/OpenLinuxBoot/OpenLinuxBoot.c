@@ -6,24 +6,118 @@
 **/
 
 #include <Uefi.h>
+#include <Library/BaseLib.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/MemoryAllocationLib.h>
 #include <Library/OcBootManagementLib.h>
-#include <Library/OcFileLib.h>
 #include <Library/OcDebugLogLib.h>
+#include <Library/OcFileLib.h>
+#include <Library/OcStringLib.h>
 
 #include <Protocol/OcBootEntry.h>
 
-//
-// Disallow Apple filesystems, mainly to avoid scanning multiple APFS partitions.
-//
-#define LINUX_SCAN_DISALLOW \
-  (OC_SCAN_ALLOW_FS_APFS | OC_SCAN_ALLOW_FS_HFS)
+STATIC
+EFI_STATUS
+InternalScanLoaderEntries (
+  IN  EFI_HANDLE                      Device
+  )
+{
+  EFI_STATUS                      Status;
+
+  EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *FileSystem;
+  EFI_FILE_PROTOCOL               *Root;
+
+  EFI_FILE_PROTOCOL               *Directory;
+  EFI_FILE_INFO                   *FileInfo;
+  UINTN                           FileInfoSize;
+
+  Root = NULL;
+
+  Status = gBS->HandleProtocol (
+                  Device,
+                  &gEfiSimpleFileSystemProtocolGuid,
+                  (VOID **) &FileSystem
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_BULK_INFO, "LNX: Missing filesystem - %r\n", Status));
+    return Status;
+  }
+
+  Status = FileSystem->OpenVolume (FileSystem, &Root);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_BULK_INFO, "LNX: Invalid root volume - %r\n", Status));
+    return Status;
+  }
+
+  Status = SafeFileOpen (Root, &Directory, L"\\loader\\entries", EFI_FILE_MODE_READ, 0);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  //
+  // Ensure this is a directory.
+  //
+  FileInfo = GetFileInfo (Directory, &gEfiFileInfoGuid, 0, NULL);
+  if (FileInfo == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+  if (!(FileInfo->Attribute & EFI_FILE_DIRECTORY)) {
+    FreePool (FileInfo);
+    return EFI_INVALID_PARAMETER;
+  }
+  FreePool (FileInfo);
+
+  //
+  // Allocate per-file FILE_INFO structure.
+  //
+  FileInfo = AllocatePool (SIZE_1KB);
+  if (FileInfo == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  Directory->SetPosition (Directory, 0);
+
+  do {
+    //
+    // EFI_FILE_INFO structures larger than 1KB are
+    // unrealistic as the filename is the only variable.
+    //
+    FileInfoSize = SIZE_1KB - sizeof (CHAR16);
+    Status = Directory->Read (Directory, &FileInfoSize, FileInfo);
+    if (EFI_ERROR (Status)) {
+      Directory->SetPosition (Directory, 0);
+      FreePool (FileInfo);
+      return Status;
+    }
+
+    if (FileInfoSize > 0) {
+      //
+      // Skip ".*" and "auto-*" files, case sensitive;
+      // follows systemd-boot logic.
+      //
+      if ((FileInfo->Attribute & EFI_FILE_DIRECTORY) ||
+        FileInfo->FileName[0] == L'.' ||
+        StrnCmp (FileInfo->FileName, L"auto-", L_STR_LEN (L"auto-")) == 0 ||
+        !OcUnicodeEndsWith (FileInfo->FileName, L".conf", TRUE)) {
+        continue;
+      }
+
+      DEBUG ((DEBUG_INFO, "LNX: Ready to scan %s ...\n", FileInfo->FileName));
+    }
+  } while (FileInfoSize > 0);
+
+  Directory->SetPosition (Directory, 0);
+  FreePool (FileInfo);
+
+  Root->Close (Root);
+  return Status;
+}
 
 STATIC
 EFI_STATUS
 EFIAPI
 OcGetLinuxBootEntries (
-  IN   EFI_HANDLE               Handle,
+  IN   EFI_HANDLE               Device,
   OUT  OC_BOOT_ENTRY            **Entries,
   OUT  UINTN                    *NumEntries,
   IN   CHAR16                   *PrescanName OPTIONAL
@@ -35,19 +129,23 @@ OcGetLinuxBootEntries (
   //
   // No custom entries
   //
-  if (Handle == NULL) {
-    // // TODO: Remove debug msg
-    // DEBUG ((DEBUG_INFO, "LNX: No custom entries!\n"));
+  if (Device == NULL) {
     return EFI_NOT_FOUND;
   }
 
   //
-  // Disallow unwanted filesystems; we will only be called
-  // with filesystems already allowed by OC scan policy.
+  // Disallow Apple filesystems, mainly to avoid needlessly
+  // scanning multiple APFS partitions.
   //
-  FileSystemPolicy = OcGetFileSystemPolicyType (Handle);
-  if ((LINUX_SCAN_DISALLOW & FileSystemPolicy) != 0) {
-    DEBUG ((DEBUG_INFO, "LNX: Disallowed file system policy (%x/%x) for %p\n", FileSystemPolicy, LINUX_SCAN_DISALLOW, Handle));
+  FileSystemPolicy = OcGetFileSystemPolicyType (Device);
+
+  if ((FileSystemPolicy & OC_SCAN_ALLOW_FS_APFS) != 0) {
+    DEBUG ((DEBUG_INFO, "LNX: %a - not scanning\r", "APFS"));
+    return EFI_NOT_FOUND;
+  }
+
+  if ((FileSystemPolicy & OC_SCAN_ALLOW_FS_HFS) != 0) {
+    DEBUG ((DEBUG_INFO, "LNX: %a - not scanning\r", "HFS"));
     return EFI_NOT_FOUND;
   }
 
@@ -55,7 +153,7 @@ OcGetLinuxBootEntries (
   // Log TypeGUID and PARTUUID of the drive we're in
   //
   DEBUG_CODE_BEGIN ();
-  PartitionEntry = OcGetGptPartitionEntry (Handle);
+  PartitionEntry = OcGetGptPartitionEntry (Device);
   DEBUG ((
     DEBUG_INFO,
     "LNX: TypeGUID: %g PARTUUID: %g\n",
@@ -63,6 +161,11 @@ OcGetLinuxBootEntries (
     PartitionEntry->UniquePartitionGUID
     ));
   DEBUG_CODE_END ();
+
+  //
+  // Scan for boot loader spec entries
+  //
+  InternalScanLoaderEntries (Device);
 
   return EFI_NOT_FOUND;
 }

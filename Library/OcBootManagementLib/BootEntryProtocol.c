@@ -94,6 +94,13 @@ AddEntriesFromBootEntryProtocol (
   UINTN                         NumEntries;
 
   for (Index = 0; Index < EntryProtocolHandleCount; ++Index) {
+    //
+    // Previously marked as invalid.
+    //
+    if (EntryProtocolHandles[Index] == NULL) {
+      continue;
+    }
+
     TempStatus = gBS->HandleProtocol (
       EntryProtocolHandles[Index],
       &gOcBootEntryProtocolGuid,
@@ -112,6 +119,7 @@ AddEntriesFromBootEntryProtocol (
         BootEntryProtocol->Revision,
         OC_BOOT_ENTRY_PROTOCOL_REVISION
         ));
+      EntryProtocolHandles[Index] = NULL;
       continue;
     }
 

@@ -34,7 +34,7 @@ typedef struct OC_BOOT_ENTRY_PROTOCOL_ OC_BOOT_ENTRY_PROTOCOL;
 /**
   Return list of OpenCore boot entries associated with filesystem.
 
-  @param[in]  Handle            The handle of the parition to scan. NULL is passed in to
+  @param[in]  Device            The handle of the device to scan. NULL is passed in to
                                 request custom entries. All implementations must support a
                                 NULL input value, but may immediately return EFI_NOT_FOUND
                                 if they do not provide any custom entries.
@@ -70,7 +70,7 @@ typedef struct OC_BOOT_ENTRY_PROTOCOL_ OC_BOOT_ENTRY_PROTOCOL;
 typedef
 EFI_STATUS
 (EFIAPI *OC_GET_BOOT_ENTRIES) (
-  IN   EFI_HANDLE               Handle,
+  IN   EFI_HANDLE               Device,
   OUT  OC_BOOT_ENTRY            **Entries,
   OUT  UINTN                    *NumEntries,
   IN   CHAR16                   *PrescanName OPTIONAL
