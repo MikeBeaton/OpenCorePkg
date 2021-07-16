@@ -16,6 +16,18 @@
 
 #include <Protocol/OcBootEntry.h>
 
+#define BLSPEC_SUFFIX_CONF L".conf"
+#define BLSPEC_PREFIX_AUTO L"auto-"
+
+//
+// Limit this length since entry name (eventually as 8 bit null terminated string) may get stored in NVRAM
+//
+#define MAX_ENTRY_NAME_LEN        127
+#define MAX_CONF_FILE_INFO_SIZE   (                                           \
+  SIZE_OF_EFI_FILE_INFO +                                                     \
+  (MAX_ENTRY_NAME_LEN + L_STR_LEN (BLSPEC_SUFFIX_CONF) + 1) * sizeof (CHAR16) \
+  )
+
 STATIC
 EFI_STATUS
 InternalScanLoaderEntries (
@@ -71,7 +83,7 @@ InternalScanLoaderEntries (
   //
   // Allocate per-file FILE_INFO structure.
   //
-  FileInfo = AllocatePool (SIZE_1KB);
+  FileInfo = AllocatePool (MAX_CONF_FILE_INFO_SIZE);
   if (FileInfo == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
@@ -82,15 +94,20 @@ InternalScanLoaderEntries (
 
   do {
     //
-    // EFI_FILE_INFO structures larger than 1KB are
-    // unrealistic as the filename is the only variable.
+    // TODO: I am not sure this needs `- sizeof (CHAR16)`
+    // even though used in FileProtocol.c:GetNewestFileFromDirectory
+    // and CachlessContext.c:ScanExtensions.
     //
-    FileInfoSize = SIZE_1KB - sizeof (CHAR16);
+    FileInfoSize = MAX_CONF_FILE_INFO_SIZE; //// - sizeof (CHAR16);
     TempStatus = Directory->Read (Directory, &FileInfoSize, FileInfo);
     if (EFI_ERROR (TempStatus)) {
-      Directory->SetPosition (Directory, 0);
-      FreePool (FileInfo);
-      return TempStatus;
+      //
+      // Return what's been found up to problem file.
+      // (Apple's HFS+ driver does not adhere to the spec and will return zero for
+      // EFI_BUFFER_TOO_SMALL.)
+      //
+      DEBUG ((DEBUG_ERROR, "LNX: Directory entry error - %r\n", TempStatus));
+      break;
     }
 
     if (FileInfoSize > 0) {
@@ -100,12 +117,12 @@ InternalScanLoaderEntries (
       //
       if ((FileInfo->Attribute & EFI_FILE_DIRECTORY) ||
         FileInfo->FileName[0] == L'.' ||
-        StrnCmp (FileInfo->FileName, L"auto-", L_STR_LEN (L"auto-")) == 0 ||
-        !OcUnicodeEndsWith (FileInfo->FileName, L".conf", TRUE)) {
+        StrnCmp (FileInfo->FileName, BLSPEC_PREFIX_AUTO, L_STR_LEN (BLSPEC_PREFIX_AUTO)) == 0 ||
+        !OcUnicodeEndsWith (FileInfo->FileName, BLSPEC_SUFFIX_CONF, TRUE)) {
         continue;
       }
 
-      DEBUG ((DEBUG_INFO, "LNX: Ready to scan %s ...\n", FileInfo->FileName));
+      DEBUG ((DEBUG_INFO, "LNX: Ready to scan %s...\n", FileInfo->FileName));
 
       Status = EFI_SUCCESS;
     }
