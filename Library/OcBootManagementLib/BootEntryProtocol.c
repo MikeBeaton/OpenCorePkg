@@ -69,7 +69,7 @@ FreeBootEntryProtocolHandles (
 }
 
 /**
-  Request bolsotable entries from installed boot entry protocol drivers.
+  Request bootable entries from installed boot entry protocol drivers.
 
   @param[in,out] BootContext                Context of filesystems.
   @param[in,out] FileSystem                 Filesystem to scan for entries.
@@ -116,7 +116,7 @@ AddEntriesFromBootEntryProtocol (
     }
 
     Status = BootEntryProtocol->GetBootEntries (
-      FileSystem->Handle == OC_CUSTOM_FS_HANDLE ? NULL : FileSystem,
+      FileSystem->Handle == OC_CUSTOM_FS_HANDLE ? NULL : FileSystem->Handle,
       &Entries,
       &NumEntries,
       NULL

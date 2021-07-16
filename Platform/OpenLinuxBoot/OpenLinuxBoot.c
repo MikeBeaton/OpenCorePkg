@@ -23,7 +23,7 @@ STATIC
 EFI_STATUS
 EFIAPI
 OcGetLinuxBootEntries (
-  IN   OC_BOOT_FILESYSTEM       *Filesystem,
+  IN   EFI_HANDLE               Handle,
   OUT  OC_BOOT_ENTRY            **Entries,
   OUT  UINTN                    *NumEntries,
   IN   CHAR16                   *PrescanName OPTIONAL
@@ -35,7 +35,7 @@ OcGetLinuxBootEntries (
   //
   // No custom entries
   //
-  if (Filesystem == NULL) {
+  if (Handle == NULL) {
     // // TODO: Remove debug msg
     // DEBUG ((DEBUG_INFO, "LNX: No custom entries!\n"));
     return EFI_NOT_FOUND;
@@ -45,9 +45,9 @@ OcGetLinuxBootEntries (
   // Disallow unwanted filesystems; we will only be called
   // with filesystems already allowed by OC scan policy.
   //
-  FileSystemPolicy = OcGetFileSystemPolicyType (Filesystem->Handle);
+  FileSystemPolicy = OcGetFileSystemPolicyType (Handle);
   if ((LINUX_SCAN_DISALLOW & FileSystemPolicy) != 0) {
-    DEBUG ((DEBUG_INFO, "LNX: Disallowed file system policy (%x/%x) for %p\n", FileSystemPolicy, LINUX_SCAN_DISALLOW, Filesystem->Handle));
+    DEBUG ((DEBUG_INFO, "LNX: Disallowed file system policy (%x/%x) for %p\n", FileSystemPolicy, LINUX_SCAN_DISALLOW, Handle));
     return EFI_NOT_FOUND;
   }
 
@@ -55,7 +55,7 @@ OcGetLinuxBootEntries (
   // Log TypeGUID and PARTUUID of the drive we're in
   //
   DEBUG_CODE_BEGIN ();
-  PartitionEntry = OcGetGptPartitionEntry (Filesystem->Handle);
+  PartitionEntry = OcGetGptPartitionEntry (Handle);
   DEBUG ((
     DEBUG_INFO,
     "LNX: TypeGUID: %g PARTUUID: %g\n",

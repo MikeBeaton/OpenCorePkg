@@ -34,9 +34,9 @@ typedef struct OC_BOOT_ENTRY_PROTOCOL_ OC_BOOT_ENTRY_PROTOCOL;
 /**
   Return list of OpenCore boot entries associated with filesystem.
 
-  @param[in]  Filesystem        The filesystem to scan. NULL is passed in to request
-                                custom entries. All implementations must support a NULL
-                                input value, but should immediately return EFI_NOT_FOUND
+  @param[in]  Handle            The handle of the parition to scan. NULL is passed in to
+                                request custom entries. All implementations must support a
+                                NULL input value, but may immediately return EFI_NOT_FOUND
                                 if they do not provide any custom entries.
   @param[out] BootEntries       List of boot entries associated with the filesystem.
                                 On EFI_SUCCESS BootEntries must be freed by the caller
@@ -70,7 +70,7 @@ typedef struct OC_BOOT_ENTRY_PROTOCOL_ OC_BOOT_ENTRY_PROTOCOL;
 typedef
 EFI_STATUS
 (EFIAPI *OC_GET_BOOT_ENTRIES) (
-  IN   OC_BOOT_FILESYSTEM       *Filesystem,
+  IN   EFI_HANDLE               Handle,
   OUT  OC_BOOT_ENTRY            **Entries,
   OUT  UINTN                    *NumEntries,
   IN   CHAR16                   *PrescanName OPTIONAL
