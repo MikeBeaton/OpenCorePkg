@@ -16,6 +16,8 @@
 
 #include <Protocol/OcBootEntry.h>
 
+#define LOADER_ENTRIES_DIR L"\\loader\\entries"
+
 #define BLSPEC_SUFFIX_CONF L".conf"
 #define BLSPEC_PREFIX_AUTO L"auto-"
 
@@ -62,7 +64,7 @@ InternalScanLoaderEntries (
     return Status;
   }
 
-  Status = SafeFileOpen (Root, &Directory, L"\\loader\\entries", EFI_FILE_MODE_READ, 0);
+  Status = SafeFileOpen (Root, &Directory, LOADER_ENTRIES_DIR, EFI_FILE_MODE_READ, 0);
   if (EFI_ERROR (Status)) {
     return Status;
   }
@@ -103,8 +105,9 @@ InternalScanLoaderEntries (
     if (EFI_ERROR (TempStatus)) {
       //
       // Return what's been found up to problem file.
-      // (Apple's HFS+ driver does not adhere to the spec and will return zero for
-      // EFI_BUFFER_TOO_SMALL.)
+      // Note: Comment elsewhere states that some version of
+      // Apple's HFS+ driver does not adhere to the spec and will return zero for
+      // EFI_BUFFER_TOO_SMALL.
       //
       DEBUG ((DEBUG_ERROR, "LNX: Directory entry error - %r\n", TempStatus));
       break;
